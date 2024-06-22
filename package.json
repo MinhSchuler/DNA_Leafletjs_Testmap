@@ -1,0 +1,14 @@
+{
+  "dependencies": {
+    "leaflet": "^1.9.4",
+    "vue": "^3.4.29",
+    "vue-template-compiler": "^2.7.16"
+  },
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build"
+  },
+  "devDependencies": {
+    "@vue/cli-service": "^5.0.8"
+  }
+}
