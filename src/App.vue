@@ -2,6 +2,7 @@
   <div id="app">
     <div id="map" style="height: 500px;"></div>
     <button @click="clearMarkers">Clear Markers</button>
+    <button @click="addTestMarker">Add Test Marker</button>
   </div>
 </template>
 
@@ -24,14 +25,20 @@ export default {
   data() {
     return {
       map: null,
-      markers: []
+      markers: [],
+      knownPoints: [
+        { svg: [0, 0], gps: [11.106563, 106.612568] },
+        { svg: [1000, 0], gps: [11.106751, 106.613055] },
+        { svg: [1000, 1000], gps: [11.106231, 106.613248] },
+        { svg: [0, 1000], gps: [11.106055, 106.612760] },
+      ],
     };
   },
   mounted() {
     this.initMap();
     this.loadMarkers();
     this.getGeolocation();
-    this.loadRasterizedSvg(); // Load the rasterized SVG overlay
+    this.loadRasterizedSvg(); 
   },
   methods: {
     initMap() {
@@ -103,7 +110,8 @@ export default {
         navigator.geolocation.getCurrentPosition(
           position => {
             const { latitude, longitude } = position.coords;
-            this.map.setView([latitude, longitude], 13);
+            const svgCoordinates = this.transformToSvg(latitude, longitude);
+            this.map.setView(svgCoordinates, 13);
           },
           error => {
             console.error(error.message);
@@ -113,12 +121,19 @@ export default {
     },
     addMarker(event) {
       const markerCoordinates = event.latlng;
-      const marker = L.marker(markerCoordinates).addTo(this.map).bindPopup(this.createPopupContent(markerCoordinates));
+      const gpsCoordinates = this.transformToGps(markerCoordinates.lat, markerCoordinates.lng);
+      const popupContent = this.createPopupContent(markerCoordinates, gpsCoordinates);
+      const marker = L.marker(markerCoordinates).addTo(this.map).bindPopup(popupContent);
       this.markers.push(marker);
       this.debouncedSaveMarkers();
     },
-    createPopupContent(markerCoordinates) {
-      return `Coordinates: ${markerCoordinates.lat}, ${markerCoordinates.lng}`;
+    createPopupContent(markerCoordinates, gpsCoordinates) {
+      const gpsLat = gpsCoordinates[0].toFixed(6);
+      const gpsLng = gpsCoordinates[1].toFixed(6);
+      return `
+        <b>SVG Coordinates:</b> ${markerCoordinates.lat.toFixed(2)}, ${markerCoordinates.lng.toFixed(2)}<br>
+        <b>GPS Coordinates:</b> ${gpsLat}, ${gpsLng}
+      `;
     },
     debouncedSaveMarkers: _.debounce(function() {
       this.saveMarkers();
@@ -147,6 +162,57 @@ export default {
       this.markers = [];
       this.saveMarkers();
     },
+    transformToSvg(lat, lon) {
+      const { knownPoints } = this;
+      const [p1, p2, p3, p4] = knownPoints;
+
+      const x = this.bilinearInterpolation(
+        p1.gps[0], p2.gps[0], p3.gps[0], p4.gps[0],
+        p1.svg[0], p2.svg[0], p3.svg[0], p4.svg[0],
+        lat, lon
+      );
+
+      const y = this.bilinearInterpolation(
+        p1.gps[1], p2.gps[1], p3.gps[1], p4.gps[1],
+        p1.svg[1], p2.svg[1], p3.svg[1], p4.svg[1],
+        lat, lon
+      );
+
+      return [x, y];
+    },
+    transformToGps(x, y) {
+      const { knownPoints } = this;
+      const [p1, p2, p3, p4] = knownPoints;
+
+      const lat = this.bilinearInterpolation(
+        p1.svg[0], p2.svg[0], p3.svg[0], p4.svg[0],
+        p1.gps[0], p2.gps[0], p3.gps[0], p4.gps[0],
+        x, y
+      );
+
+      const lon = this.bilinearInterpolation(
+        p1.svg[1], p2.svg[1], p3.svg[1], p4.svg[1],
+        p1.gps[1], p2.gps[1], p3.gps[1], p4.gps[1],
+        x, y
+      );
+
+      return [lat, lon];
+    },
+    bilinearInterpolation(x1, x2, x3, x4, y1, y2, y3, y4, x, y) {
+      const a0 = y1;
+      const a1 = (y2 - y1) / (x2 - x1);
+      const a2 = (y3 - y1) / (x3 - x1);
+      const a3 = (y1 - y2 - y3 + y4) / ((x2 - x1) * (x3 - x1));
+
+      return a0 + a1 * (x - x1) + a2 * (y - x1) + a3 * (x - x1) * (y - x1);
+    },
+    addTestMarker() {
+      const testSvgCoordinates = [500, 500];
+      const gpsCoordinates = this.transformToGps(testSvgCoordinates[0], testSvgCoordinates[1]);
+      const popupContent = this.createPopupContent({ lat: testSvgCoordinates[0], lng: testSvgCoordinates[1] }, gpsCoordinates);
+      const marker = L.marker(testSvgCoordinates).addTo(this.map).bindPopup(popupContent);
+      this.markers.push(marker);
+    }
   }
 }
 </script>
