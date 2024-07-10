@@ -1,8 +1,10 @@
 <template>
   <div id="app">
-    <div id="map" style="height: 500px;"></div>
-    <button @click="clearMarkers">Clear Markers</button>
-    <button @click="addTestMarker">Add Test Marker</button>
+    <div id="map" style="height: 100vh;"></div>
+    <div class="button-container">
+      <button @click="clearMarkers">Clear Markers</button>
+      <button @click="addTestMarker">Add Test Marker</button>
+    </div>
   </div>
 </template>
 
@@ -38,13 +40,14 @@ export default {
     this.initMap();
     this.loadMarkers();
     this.getGeolocation();
-    this.loadRasterizedSvg(); 
+    this.loadRasterizedSvg();
   },
   methods: {
     initMap() {
       this.map = L.map('map', {
         crs: L.CRS.Simple,
-        minZoom: -1
+        minZoom: -1,
+        maxZoom: 2, // Adjust as needed
       });
 
       if (this.map) {
@@ -71,7 +74,6 @@ export default {
             console.log('SVG Element:', svgElement);
             const svgBounds = [[0, 0], [svgElement.height.baseVal.value, svgElement.width.baseVal.value]];
 
-            // Create an offscreen canvas to rasterize the SVG
             const canvas = document.createElement('canvas');
             canvas.width = svgElement.width.baseVal.value;
             canvas.height = svgElement.height.baseVal.value;
@@ -111,7 +113,11 @@ export default {
           position => {
             const { latitude, longitude } = position.coords;
             const svgCoordinates = this.transformToSvg(latitude, longitude);
-            this.map.setView(svgCoordinates, 13);
+            if (svgCoordinates) {
+              this.map.setView(svgCoordinates, 13);
+            } else {
+              console.error('SVG coordinates transformation failed.');
+            }
           },
           error => {
             console.error(error.message);
@@ -122,10 +128,14 @@ export default {
     addMarker(event) {
       const markerCoordinates = event.latlng;
       const gpsCoordinates = this.transformToGps(markerCoordinates.lat, markerCoordinates.lng);
-      const popupContent = this.createPopupContent(markerCoordinates, gpsCoordinates);
-      const marker = L.marker(markerCoordinates).addTo(this.map).bindPopup(popupContent);
-      this.markers.push(marker);
-      this.debouncedSaveMarkers();
+      if (gpsCoordinates) {
+        const popupContent = this.createPopupContent(markerCoordinates, gpsCoordinates);
+        const marker = L.marker(markerCoordinates).addTo(this.map).bindPopup(popupContent);
+        this.markers.push(marker);
+        this.debouncedSaveMarkers();
+      } else {
+        console.error('GPS coordinates transformation failed.');
+      }
     },
     createPopupContent(markerCoordinates, gpsCoordinates) {
       const gpsLat = gpsCoordinates[0].toFixed(6);
@@ -219,7 +229,29 @@ export default {
 
 <style>
 #map {
-  height: 500px;
+  height: 100vh;
+}
+
+.button-container {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  padding: 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+button:hover {
+  background-color: #0056b3;
 }
 
 @import "~leaflet/dist/leaflet.css";
