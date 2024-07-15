@@ -233,15 +233,17 @@ export default {
   width: 100%;
   border: 2px solid #ccc;
   border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .marker {
   cursor: pointer;
-  transition: transform 0.2s;
+  transition: transform 0.2s, box-shadow 0.2s;
 }
 
 .marker:hover {
   transform: scale(1.1);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
 }
 
 .button-container {
@@ -251,19 +253,28 @@ export default {
   z-index: 1000;
   display: flex;
   gap: 10px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 button {
-  padding: 10px;
+  padding: 10px 15px;
   background-color: #007bff;
   color: white;
   border: none;
   border-radius: 5px;
   cursor: pointer;
+  font-size: 1rem;
 }
 
 button:hover {
   background-color: #0056b3;
+}
+
+.leaflet-control-zoom {
+  top: 80px !important; /* Adjust the position to avoid overlap */
 }
 
 @import "~leaflet/dist/leaflet.css";
