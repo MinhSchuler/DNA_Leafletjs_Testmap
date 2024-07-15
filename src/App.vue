@@ -1,6 +1,6 @@
 <template>
   <div id="app">
-    <div id="map" style="height: 100vh;"></div>
+    <div id="map"></div>
     <div class="button-container">
       <button @click="clearMarkers">Clear Markers</button>
       <button @click="addTestMarker">Add Test Marker</button>
@@ -230,6 +230,18 @@ export default {
 <style>
 #map {
   height: 100vh;
+  width: 100%;
+  border: 2px solid #ccc;
+  border-radius: 10px;
+}
+
+.marker {
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.marker:hover {
+  transform: scale(1.1);
 }
 
 .button-container {
