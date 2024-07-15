@@ -5,6 +5,9 @@
       <button @click="clearMarkers">Clear Markers</button>
       <button @click="addTestMarker">Add Test Marker</button>
     </div>
+    <div class="search-bar">
+      <input type="text" placeholder="Search room..." @input="searchRoom">
+    </div>
   </div>
 </template>
 
@@ -12,15 +15,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import _ from 'lodash';
-
-// Set the default icon paths
-delete L.Icon.Default.prototype._getIconUrl;
-
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'marker-icon-2x.png',
-  iconUrl: 'marker-icon.png',
-  shadowUrl: 'marker-shadow.png',
-});
 
 export default {
   name: 'App',
@@ -47,82 +41,67 @@ export default {
       this.map = L.map('map', {
         crs: L.CRS.Simple,
         minZoom: -1,
-        maxZoom: 2, // Adjust as needed
+        maxZoom: 2,
       });
-
       if (this.map) {
         const bounds = [[0, 0], [1000, 1000]];
         this.map.fitBounds(bounds);
-
         L.control.scale({ position: 'bottomright' }).addTo(this.map);
         L.control.scale({ position: 'bottomleft', maxWidth: 100, metric: true, imperial: false }).addTo(this.map);
-
         this.map.on('click', this.addMarker);
       } else {
         console.error('Map object is undefined. Initialization failed.');
       }
     },
     loadRasterizedSvg() {
-      fetch('/map.html')
-        .then(response => response.text())
-        .then(html => {
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, 'text/html');
-          const svgElement = doc.querySelector('svg');
-
-          if (svgElement) {
-            console.log('SVG Element:', svgElement);
-            const svgBounds = [[0, 0], [svgElement.height.baseVal.value, svgElement.width.baseVal.value]];
-
-            const canvas = document.createElement('canvas');
-            canvas.width = svgElement.width.baseVal.value;
-            canvas.height = svgElement.height.baseVal.value;
-            const ctx = canvas.getContext('2d');
-
-            const svgString = new XMLSerializer().serializeToString(svgElement);
-            const img = new Image();
-            img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
-
-            img.onload = () => {
-              ctx.drawImage(img, 0, 0);
-              const pngUrl = canvas.toDataURL('image/png');
-              const imageOverlay = L.imageOverlay(pngUrl, svgBounds).addTo(this.map);
-
-              if (imageOverlay) {
-                console.log('Rasterized SVG overlay added successfully');
-                this.map.fitBounds(svgBounds);
-              } else {
-                console.error('Failed to add rasterized SVG overlay');
-              }
-            };
-
-            img.onerror = () => {
-              console.error('Failed to load rasterized SVG image');
-            };
-          } else {
-            console.error('SVG element not found in HTML');
-          }
-        })
-        .catch(error => {
-          console.error('Error loading SVG overlay:', error);
-        });
+      fetch('/map.html').then(response => response.text()).then(html => {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        const svgElement = doc.querySelector('svg');
+        if (svgElement) {
+          console.log('SVG Element:', svgElement);
+          const svgBounds = [[0, 0], [svgElement.height.baseVal.value, svgElement.width.baseVal.value]];
+          const canvas = document.createElement('canvas');
+          canvas.width = svgElement.width.baseVal.value;
+          canvas.height = svgElement.height.baseVal.value;
+          const ctx = canvas.getContext('2d');
+          const svgString = new XMLSerializer().serializeToString(svgElement);
+          const img = new Image();
+          img.src = 'data:image/svg+xml;base64,' + btoa(svgString);
+          img.onload = () => {
+            ctx.drawImage(img, 0, 0);
+            const pngUrl = canvas.toDataURL('image/png');
+            const imageOverlay = L.imageOverlay(pngUrl, svgBounds).addTo(this.map);
+            if (imageOverlay) {
+              console.log('Rasterized SVG overlay added successfully');
+              this.map.fitBounds(svgBounds);
+            } else {
+              console.error('Failed to add rasterized SVG overlay');
+            }
+          };
+          img.onerror = () => {
+            console.error('Failed to load rasterized SVG image');
+          };
+        } else {
+          console.error('SVG element not found in HTML');
+        }
+      }).catch(error => {
+        console.error('Error loading SVG overlay:', error);
+      });
     },
     getGeolocation() {
       if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          position => {
-            const { latitude, longitude } = position.coords;
-            const svgCoordinates = this.transformToSvg(latitude, longitude);
-            if (svgCoordinates) {
-              this.map.setView(svgCoordinates, 13);
-            } else {
-              console.error('SVG coordinates transformation failed.');
-            }
-          },
-          error => {
-            console.error(error.message);
+        navigator.geolocation.getCurrentPosition(position => {
+          const { latitude, longitude } = position.coords;
+          const svgCoordinates = this.transformToSvg(latitude, longitude);
+          if (svgCoordinates) {
+            this.map.setView(svgCoordinates, 13);
+          } else {
+            console.error('SVG coordinates transformation failed.');
           }
-        );
+        }, error => {
+          console.error(error.message);
+        });
       }
     },
     addMarker(event) {
@@ -140,10 +119,7 @@ export default {
     createPopupContent(markerCoordinates, gpsCoordinates) {
       const gpsLat = gpsCoordinates[0].toFixed(6);
       const gpsLng = gpsCoordinates[1].toFixed(6);
-      return `
-        <b>SVG Coordinates:</b> ${markerCoordinates.lat.toFixed(2)}, ${markerCoordinates.lng.toFixed(2)}<br>
-        <b>GPS Coordinates:</b> ${gpsLat}, ${gpsLng}
-      `;
+      return `<b>SVG Coordinates:</b> ${markerCoordinates.lat.toFixed(2)}, ${markerCoordinates.lng.toFixed(2)}<br><b>GPS Coordinates:</b> ${gpsLat}, ${gpsLng}`;
     },
     debouncedSaveMarkers: _.debounce(function() {
       this.saveMarkers();
@@ -175,37 +151,15 @@ export default {
     transformToSvg(lat, lon) {
       const { knownPoints } = this;
       const [p1, p2, p3, p4] = knownPoints;
-
-      const x = this.bilinearInterpolation(
-        p1.gps[0], p2.gps[0], p3.gps[0], p4.gps[0],
-        p1.svg[0], p2.svg[0], p3.svg[0], p4.svg[0],
-        lat, lon
-      );
-
-      const y = this.bilinearInterpolation(
-        p1.gps[1], p2.gps[1], p3.gps[1], p4.gps[1],
-        p1.svg[1], p2.svg[1], p3.svg[1], p4.svg[1],
-        lat, lon
-      );
-
+      const x = this.bilinearInterpolation(p1.gps[0], p2.gps[0], p3.gps[0], p4.gps[0], p1.svg[0], p2.svg[0], p3.svg[0], p4.svg[0], lat, lon);
+      const y = this.bilinearInterpolation(p1.gps[1], p2.gps[1], p3.gps[1], p4.gps[1], p1.svg[1], p2.svg[1], p3.svg[1], p4.svg[1], lat, lon);
       return [x, y];
     },
     transformToGps(x, y) {
       const { knownPoints } = this;
       const [p1, p2, p3, p4] = knownPoints;
-
-      const lat = this.bilinearInterpolation(
-        p1.svg[0], p2.svg[0], p3.svg[0], p4.svg[0],
-        p1.gps[0], p2.gps[0], p3.gps[0], p4.gps[0],
-        x, y
-      );
-
-      const lon = this.bilinearInterpolation(
-        p1.svg[1], p2.svg[1], p3.svg[1], p4.svg[1],
-        p1.gps[1], p2.gps[1], p3.gps[1], p4.gps[1],
-        x, y
-      );
-
+      const lat = this.bilinearInterpolation(p1.svg[0], p2.svg[0], p3.svg[0], p4.svg[0], p1.gps[0], p2.gps[0], p3.gps[0], p4.gps[0], x, y);
+      const lon = this.bilinearInterpolation(p1.svg[1], p2.svg[1], p3.svg[1], p4.svg[1], p1.gps[1], p2.gps[1], p3.gps[1], p4.gps[1], x, y);
       return [lat, lon];
     },
     bilinearInterpolation(x1, x2, x3, x4, y1, y2, y3, y4, x, y) {
@@ -213,7 +167,6 @@ export default {
       const a1 = (y2 - y1) / (x2 - x1);
       const a2 = (y3 - y1) / (x3 - x1);
       const a3 = (y1 - y2 - y3 + y4) / ((x2 - x1) * (x3 - x1));
-
       return a0 + a1 * (x - x1) + a2 * (y - x1) + a3 * (x - x1) * (y - x1);
     },
     addTestMarker() {
@@ -222,6 +175,11 @@ export default {
       const popupContent = this.createPopupContent({ lat: testSvgCoordinates[0], lng: testSvgCoordinates[1] }, gpsCoordinates);
       const marker = L.marker(testSvgCoordinates).addTo(this.map).bindPopup(popupContent);
       this.markers.push(marker);
+    },
+    searchRoom(event) {
+      const searchTerm = event.target.value;
+      console.log("Searching for:", searchTerm);
+      // Implement your search functionality here
     }
   }
 }
@@ -246,17 +204,29 @@ export default {
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
 }
 
+.room {
+  transition: fill 0.2s ease-in-out;
+}
+
+.room:hover {
+  fill: #90caf9; /* Light blue fill on hover */
+}
+
+.room.selected {
+  fill: #1e88e5; /* Darker blue for selected rooms */
+}
+
 .button-container {
   position: absolute;
   top: 10px;
-  left: 10px;
-  z-index: 1000;
+  right: 10px;
+  z-index: 1050;
   display: flex;
   gap: 10px;
   padding: 10px;
-  background: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.9);
   border-radius: 5px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.25);
 }
 
 button {
@@ -274,7 +244,7 @@ button:hover {
 }
 
 .leaflet-control-zoom {
-  top: 80px !important; /* Adjust the position to avoid overlap */
+  top: 80px !important;
 }
 
 @import "~leaflet/dist/leaflet.css";
